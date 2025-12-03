@@ -189,7 +189,7 @@ Visualmente, a través de la interfaz web, se identificaron patrones no programa
 
 ### 8. Anexos
 
-*   **Enlace al Repositorio:** [INSERTAR TU LINK DE GITHUB AQUÍ]
+*   **Enlace al Repositorio:** [[LINK DE GITHUB](https://github.com/rampramp43/TF-Simulacion-de-Supervivencia-con-RL)]
 *   **Instrucciones de Ejecución:**
     1.  Clonar el repositorio.
     2.  Instalar dependencias: `pip install spade nest_asyncio`.
