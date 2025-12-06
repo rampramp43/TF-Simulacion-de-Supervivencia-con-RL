@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Minecraft RL Hardcore</title>
+    <style>
+        body { font-family: 'Consolas', monospace; background: #0d0d0d; color: #eee; text-align: center; }
+        canvas { background: #1b261b; border: 4px solid #3e2723; margin-top: 10px; box-shadow: 0 0 30px rgba(0,0,0,0.7); }
+
+        /* PANEL DE CONTROL MEJORADO */
+        .panel { 
+            background: #212121; 
+            padding: 15px; 
+            display: inline-block; 
+            border: 2px solid #616161; 
+            border-radius: 10px; 
+            margin-bottom: 5px; 
+            min-width: 900px; /* Más ancho para que quepa todo */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        .stat-box {
+            display: inline-block;
+            margin: 0 15px;
+            text-align: center;
+        }
+
+        .stat-label { font-size: 12px; color: #aaa; display: block; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #fff; }
+
+        /* Score destacado */
+        .score-val { font-size: 22px; color: #00e676; text-shadow: 0 0 5px rgba(0, 230, 118, 0.5); }
+
+        .legend { font-size: 12px; color: #aaa; margin-top: 5px; }
+        input[type=range] { vertical-align: middle; accent-color: #d84315; }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <div class="stat-box">
+            <span class="stat-label">GEN</span>
+            <span class="stat-value" id="gen">0</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-label">DÍA</span>
+            <span class="stat-value" id="dia">1</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-label">AMENAZA</span>
+            <span class="stat-value" id="threat" style="color:#ef5350">0</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-label">VIVOS</span>
+            <span class="stat-value" id="pob">0</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-label">ZOMBIES</span>
+            <span class="stat-value" id="zom">0</span>
+        </div>
+
+        <!-- PUNTUACIÓN DESTACADA -->
+        <div class="stat-box" style="border-left: 1px solid #444; padding-left: 20px;">
+            <span class="stat-label">PUNTAJE (PROMEDIO)</span>
+            <span class="stat-value score-val" id="score">0</span>
+        </div>
+
+        <br><br>
+        <label>⏩ Velocidad:</label> <input type="range" id="slider" min="1" max="50" value="1">
+    </div>
+
+    <canvas id="simCanvas" width="1000" height="700"></canvas>
+
+    <div class="legend">
+        🔴 Comida | 🟤 Madera | ⚪ Piedra | 
+        <span style="color:#ff9800">🏠 Casa N1</span> -> <span style="color:#e65100">🏰 Fortaleza N5</span> | 
+        <span style="color:#00e676">🟩 Barra HP</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const ANCHO = 1000, ALTO = 700;
+
+        function draw(data) {
+            ctx.fillStyle = data.is_night ? "#0a0814" : "#2e7d32"; 
+            ctx.fillRect(0, 0, ANCHO, ALTO);
+
+            // Recursos
+            data.recursos.forEach(r => {
+                if(r.type === 'food') { 
+                    ctx.fillStyle = '#ff1744'; ctx.beginPath(); ctx.arc(r.x, r.y, 4, 0, Math.PI*2); ctx.fill(); 
+                } else {
+                    ctx.fillStyle = (r.type === 'wood') ? '#795548' : '#bdbdbd'; 
+                    ctx.fillRect(r.x-3, r.y-3, 7, 7);
+                }
+            });
+
+            // Casas
+            data.casas.forEach(h => {
+                let size = 16 + (h.lvl * 6);
+                if (h.lvl === 1) ctx.fillStyle = "#ff9800";
+                else if (h.lvl === 2) ctx.fillStyle = "#e65100";
+                else if (h.lvl === 3) ctx.fillStyle = "#d32f2f";
+                else if (h.lvl === 4) ctx.fillStyle = "#7b1fa2";
+                else ctx.fillStyle = "#212121";
+
+                ctx.fillRect(h.x - size/2, h.y - size/2, size, size);
+
+                // Barra HP
+                ctx.fillStyle = "black"; ctx.fillRect(h.x - size/2, h.y - size/2 - 8, size, 5);
+                let hp_pct = Math.max(0, h.hp / h.max_hp);
+                let hp_color = hp_pct > 0.5 ? "#00e676" : (hp_pct > 0.25 ? "#ffea00" : "#ff1744");
+                ctx.fillStyle = hp_color;
+                ctx.fillRect(h.x - size/2, h.y - size/2 - 8, size * hp_pct, 5);
+
+                // Texto Capacidad
+                ctx.fillStyle = "white"; ctx.font = "12px monospace";
+                ctx.fillText(h.occupants + "/" + h.cap, h.x - 10, h.y + 5);
+            });
+
+            // Steves
+            data.steves.forEach(p => {
+                ctx.beginPath();
+                ctx.fillStyle = "#29b6f6"; 
+                ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+                ctx.fill();
+
+                // Acción / Estado
+                ctx.fillStyle = "white"; ctx.font = "10px Arial";
+                if(p.action === "SLEEP") {
+                    ctx.fillStyle = "#aa00ff"; 
+                    ctx.fillText("💤", p.x - 5, p.y - 15);
+                } else {
+                    ctx.fillText(p.action, p.x - 10, p.y - 15);
+                }
+
+                ctx.fillStyle = "red"; ctx.fillRect(p.x-6, p.y-9, 12, 2);
+                ctx.fillStyle = "#76ff03"; ctx.fillRect(p.x-6, p.y-9, 12 * (p.hp/100), 2);
+            });
+
+            // Zombies
+            data.zombies.forEach(z => {
+                ctx.beginPath();
+                ctx.fillStyle = "#1b5e20"; 
+                ctx.arc(z.x, z.y, 7 + (z.tier * 2), 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = "red"; ctx.lineWidth = 1; ctx.stroke();
+            });
+
+            document.getElementById('dia').innerText = data.dia;
+            document.getElementById('threat').innerText = data.difficulty;
+            document.getElementById('pob').innerText = data.steves.length;
+            document.getElementById('zom').innerText = data.zombies.length;
+            document.getElementById('gen').innerText = data.gen;
+
+            // ACTUALIZAR SCORE VISIBLE
+            let score = (data.avg_reward || 0).toFixed(1);
+            let scoreEl = document.getElementById('score');
+            scoreEl.innerText = score;
+            scoreEl.style.color = data.avg_reward >= 0 ? "#00e676" : "#ff1744";
+        }
+
+        async function loop() {
+            try {
+                const response = await fetch('/data'); 
+                if (response.ok) draw(await response.json());
+            } catch(e) {}
+            setTimeout(loop, 50); 
+        }
+
+        document.getElementById('slider').oninput = async function() {
+            await fetch('/speed', { method: 'POST', body: JSON.stringify({val: this.value}) });
+        };
+        loop();
+    </script>
+</body>
+</html>
